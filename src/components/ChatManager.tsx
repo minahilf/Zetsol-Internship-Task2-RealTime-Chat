@@ -12,7 +12,7 @@ import {
 } from "firebase/firestore";
 import { db, auth } from "../../firebase";
 
-// props ko ek interface dedia
+// props ko ek interface dedia like types dedi take sb clear rhe
 
 interface ChatManagerProps {
   showChatModal: boolean;
@@ -49,6 +49,10 @@ export default function ChatManager({
 }: ChatManagerProps) {
 
 
+
+
+  // ---STATES--- 
+
   // const [selectedUser, setSelectedUser] = useState("");
   const [joinedChannels, setJoinedChannels] = useState<string[]>([]);
   const [channelName, setChannelName] = useState("");
@@ -56,22 +60,30 @@ export default function ChatManager({
   const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
   // const [channels, setChannels] =  useState<any[]>([])
 
+
+
+
+
 const handleJoin = async (channelId: string) => {
   const currentUser = auth.currentUser;
   if (!currentUser) return;
 
   try {
+     //  specific channel ka reference liya jisme join karna hai
     const channelRef = doc(db, "channels", channelId);
     const channelSnap = await getDoc(channelRef);
 
     if (!channelSnap.exists()) return;
 
+    // channel ka data nikal liya 
     const data = channelSnap.data();
+
+    // Members array nikala jisme sab users jo channel me hain listed hain
     const currentMembers = data.members || [];
 
     if (currentMembers.includes(currentUser.uid)) return;
 
-    
+     //  Agar user member nahi hai to uska UID members list me add kardo
     await updateDoc(channelRef, {
       members: [...currentMembers, currentUser.uid],
     });
@@ -86,6 +98,9 @@ const handleJoin = async (channelId: string) => {
     alert("Join failed");
   }
 };
+
+
+
 
   // channel create krne ka form ki logic
   const handleCreateChannel = async (e: React.FormEvent) => {
@@ -113,6 +128,9 @@ const handleJoin = async (channelId: string) => {
     }
   };
 
+
+
+
   // usi channel ko jo db me store hua ab ui pe show krwayege
 
   useEffect(() => {
@@ -125,6 +143,8 @@ const handleJoin = async (channelId: string) => {
     });
     return () => unsub();
   }, []);
+
+
 
   return (
     <div className="h-0 w-0 overflow-hidden">
@@ -163,6 +183,8 @@ const handleJoin = async (channelId: string) => {
           </div>
         </div>
       )}
+
+
 
       {showChannelModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm z-50 flex items-center justify-center transition duration-300 ease-in-out">
