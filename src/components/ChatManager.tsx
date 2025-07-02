@@ -11,9 +11,9 @@ import {
   onSnapshot,
 } from "firebase/firestore";
 import { db, auth } from "../../firebase";
+import { X, Hash, MessageCircle, Users, Check } from "lucide-react";
 
 // props ko ek interface dedia like types dedi take sb clear rhe
-
 interface ChatManagerProps {
   showChatModal: boolean;
   setShowChatModal: (value: boolean) => void;
@@ -26,15 +26,6 @@ interface ChatManagerProps {
   setSelectedChannelId: (id: string) => void;
 }
 
-// just for ui dummy text agya
-
-// const dummyUsers = [
-//   { uid: "user1", name: "Minahil Fatima" },
-//   { uid: "user2", name: "Sara" },
-//   { uid: "user3", name: "Ahmed Raza" },
-// ];
-// const dummyChannels = ["#team", "#project", "#design"];
-
 export default function ChatManager({
   // destructuring
   showChatModal,
@@ -44,63 +35,50 @@ export default function ChatManager({
   setChannels,
   channels,
   users,
-   setSelectedUserId,     
+  setSelectedUserId,
   setSelectedChannelId
 }: ChatManagerProps) {
 
-
-
-
   // ---STATES--- 
-
-  // const [selectedUser, setSelectedUser] = useState("");
   const [joinedChannels, setJoinedChannels] = useState<string[]>([]);
   const [channelName, setChannelName] = useState("");
   const [channelType, setChannelType] = useState("");
   const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
-  // const [channels, setChannels] =  useState<any[]>([])
 
+  const handleJoin = async (channelId: string) => {
+    const currentUser = auth.currentUser;
+    if (!currentUser) return;
 
+    try {
+      //  specific channel ka reference liya jisme join karna hai
+      const channelRef = doc(db, "channels", channelId);
+      const channelSnap = await getDoc(channelRef);
 
+      if (!channelSnap.exists()) return;
 
+      // channel ka data nikal liya 
+      const data = channelSnap.data();
 
-const handleJoin = async (channelId: string) => {
-  const currentUser = auth.currentUser;
-  if (!currentUser) return;
+      // Members array nikala jisme sab users jo channel me hain listed hain
+      const currentMembers = data.members || [];
 
-  try {
-     //  specific channel ka reference liya jisme join karna hai
-    const channelRef = doc(db, "channels", channelId);
-    const channelSnap = await getDoc(channelRef);
+      if (currentMembers.includes(currentUser.uid)) return;
 
-    if (!channelSnap.exists()) return;
+      //  Agar user member nahi hai to uska UID members list me add kardo
+      await updateDoc(channelRef, {
+        members: [...currentMembers, currentUser.uid],
+      });
 
-    // channel ka data nikal liya 
-    const data = channelSnap.data();
+      setSelectedChannelId(channelId);
+      setSelectedUserId("");
 
-    // Members array nikala jisme sab users jo channel me hain listed hain
-    const currentMembers = data.members || [];
+      alert("Joined channel successfully");
 
-    if (currentMembers.includes(currentUser.uid)) return;
-
-     //  Agar user member nahi hai to uska UID members list me add kardo
-    await updateDoc(channelRef, {
-      members: [...currentMembers, currentUser.uid],
-    });
-
-    setSelectedChannelId(channelId);
-    setSelectedUserId("");
-
-    alert("Joined channel successfully");
-
-  } catch (error) {
-    console.error("Error joining channel:", error);
-    alert("Join failed");
-  }
-};
-
-
-
+    } catch (error) {
+      console.error("Error joining channel:", error);
+      alert("Join failed");
+    }
+  };
 
   // channel create krne ka form ki logic
   const handleCreateChannel = async (e: React.FormEvent) => {
@@ -119,20 +97,17 @@ const handleJoin = async (channelId: string) => {
         createdAt: serverTimestamp(),
       });
 
-      setChannelName(""),
-        setChannelType(""),
-        setShowChannelModal(false),
-        alert("Channel created successfully");
+      setChannelName("");
+      setChannelType("");
+      setSelectedMembers([]);
+      setShowChannelModal(false);
+      alert("Channel created successfully");
     } catch (error) {
       alert("Something went wrong");
     }
   };
 
-
-
-
   // usi channel ko jo db me store hua ab ui pe show krwayege
-
   useEffect(() => {
     const unsub = onSnapshot(collection(db, "channels"), (snapshot) => {
       const list = snapshot.docs.map((doc) => ({
@@ -144,146 +119,232 @@ const handleJoin = async (channelId: string) => {
     return () => unsub();
   }, []);
 
-
-
   return (
     <div className="h-0 w-0 overflow-hidden">
+      {/* NEW CHAT MODAL */}
       {showChatModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm z-50 flex items-center justify-center transition duration-300 ease-in-out">
-          <div className="bg-mainPurple rounded-lg p-6 w-full max-w-[500px] mx-auto shadow-lg animate-fade-in">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-2xl font-bold text-white">
-                Start a New Chat
-              </h2>
+        // background 
+        <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+{/* new chat khulne ka div  */}
+          <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-2xl w-full max-w-md ">
+            {/* Header */}
+            <div className="flex items-center justify-between p-6 border-b border-[#2a2a2a]">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 bg-mainPurple rounded-lg flex items-center justify-center">
+                  <MessageCircle size={16} className="text-white" />
+                </div>
+                <h2 className="text-xl font-semibold text-white">
+                  Start New Chat
+                </h2>
+              </div>
               <button
                 onClick={() => setShowChatModal(false)}
-                className="text-2xl text-white"
+                className="text-gray-400 hover:text-white transition-colors p-1"
               >
-                ×
+                <X size={20} />
               </button>
             </div>
 
-            <select
-              onChange={(e) => {
-                const uid = e.target.value;
-                if (!uid) return;
-                setSelectedUserId(uid);
-                setShowChatModal(false); 
-                setSelectedChannelId("");
-              }}
-              className="w-full border p-2 rounded mb-4 focus:outline-none bg-[#943696] text-white"
-            >
-              <option value="">Select a user</option>
-              {users.map((user) => (
-                <option key={user.uid} value={user.uid} className="text-white">
-                  {user.name}
-                </option>
-              ))}
-            </select>
+            {/* Content */}
+            <div className="p-6">
+              <div className="space-y-3">
+                <label className="text-sm font-medium text-gray-300">
+                  Select a user to chat
+                </label>
+
+                <select
+                  onChange={(e) => {
+                    const uid = e.target.value;
+                    if (!uid) return;
+                    setSelectedUserId(uid);
+                    setShowChatModal(false);
+                    setSelectedChannelId("");
+                  }}
+                  className="w-full p-3 bg-[#2a2a2a] border border-[#3a3a3a] text-white rounded-xl focus:outline-none  focus:ring-mainPurple focus:border-transparent"
+                >
+                  <option value="" className="bg-[#2a2a2a]">
+                    Choose a user...
+                  </option>
+
+                  {/* list me sb user ajayege */}
+                  {users.map((user) => (
+                    <option 
+                      key={user.uid} 
+                      value={user.uid} 
+                      className="bg-[#2a2a2a] text-white"
+                    >
+                      {user.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
           </div>
         </div>
       )}
 
-
-
+      {/* CHANNEL MODAL */}
       {showChannelModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm z-50 flex items-center justify-center transition duration-300 ease-in-out">
-          <div className="bg-mainPurple rounded-lg p-6 w-full max-w-[500px] mx-auto shadow-lg animate-fade-in space-y-4">
-            <div className="flex justify-between items-center mb-2">
-              <h2 className="text-2xl font-bold text-white">Create Channels</h2>
+        <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+
+          <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden shadow-2xl">
+
+            {/* Header */}
+            <div className="flex items-center justify-between p-6 border-b border-[#2a2a2a]">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 bg-mainPurple rounded-lg flex items-center justify-center">
+                  <Hash size={16} className="text-white" />
+                </div>
+                <h2 className="text-xl font-semibold text-white">
+                  Channels
+                </h2>
+              </div>
               <button
                 onClick={() => setShowChannelModal(false)}
-                className="text-2xl text-white"
+                className="text-gray-400 hover:text-white transition-colors p-1"
               >
-                ×
+                <X size={20} />
               </button>
             </div>
 
-            <form onSubmit={handleCreateChannel} className="space-y-4">
-              <input
-                type="text"
-                placeholder="Channel Name"
-                value={channelName}
-                onChange={(e) => setChannelName(e.target.value)}
-                className="w-full p-2 rounded bg-[#943696] text-white"
-              />
-
-              <select
-                value={channelType}
-                onChange={(e) => setChannelType(e.target.value)}
-                className="w-full p-2 rounded bg-[#943696] text-white"
-              >
-                <option value="">Select Channel Type</option>
-                <option value="public">Public</option>
-                <option value="private">Private</option>
-              </select>
-
-              {/* Show checkboxes only if private selected */}
-              {channelType === "private" && (
-                <div className="space-y-1">
-                  <h4 className="text-white font-bold">Select Members:</h4>
-                  {users.map((user) => (
-                    <label
-                      key={user.uid}
-                      className="flex items-center gap-2 text-white text-sm"
-                    >
-                      <input
-                        type="checkbox"
-                        value={user.uid}
-                        checked={selectedMembers.includes(user.uid)}
-                        onChange={() => {
-                          if (selectedMembers.includes(user.uid)) {
-                            setSelectedMembers(
-                              selectedMembers.filter((id) => id !== user.uid)
-                            );
-                          } else {
-                            setSelectedMembers([...selectedMembers, user.uid]);
-                          }
-                        }}
-                      />
-                      {user.name}
+{/* form */}
+            <div className="overflow-y-auto max-h-[70vh]">
+              {/* Create Channel Form */}
+              <div className="p-6 border-b border-[#2a2a2a]">
+                <h3 className="text-lg font-semibold text-white mb-4">
+                  Create New Channel
+                </h3>
+                
+                <form onSubmit={handleCreateChannel} className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                      Channel Name
                     </label>
-                  ))}
-                </div>
-              )}
+                    <input
+                      type="text"
+                      placeholder="General"
+                      value={channelName}
+                      onChange={(e) => setChannelName(e.target.value)}
+                      className="w-full p-3 bg-[#2a2a2a] border border-[#3a3a3a] text-white rounded-xl focus:outline-none focus:border-transparent placeholder-gray-500"
+                    />
+                  </div>
 
-              <button
-                type="submit"
-                className="bg-green-500 text-white px-4 py-2 rounded w-full"
-              >
-                Create Channel
-              </button>
-            </form>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                      Channel Type
+                    </label>
 
-            {/* channels show krna  */}
+                    <select
+                      value={channelType}
+                      onChange={(e) => setChannelType(e.target.value)}
+                      className="w-full p-3 bg-[#2a2a2a] border border-[#3a3a3a] text-white rounded-xl focus:outline-none  focus:border-transparent"
+                    >
+                      <option value="" className="bg-[#2a2a2a]">
+                        Select channel type...
+                      </option>
+                      <option value="public" className="bg-[#2a2a2a]">
+                        Public
+                      </option>
+                      <option value="private" className="bg-[#2a2a2a]">
+                        Private
+                      </option>
+                    </select>
+                  </div>
 
-            <div>
-              <h3 className="font-semibold mb-2 text-white">
-                Available Channels
-              </h3>
-              <ul className="space-y-2 text-[#a7a7a7]">
-                {channels.map((channel: any) => (
-                  <li
-                    key={channel.id}
-                    className="flex items-center justify-between text-sm"
+                  {/* Members Selection for Private Channels */}
+                  {channelType === "private" && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-3">
+                        <Users size={16} className="inline mr-2" />
+                        Select Members
+                      </label>
+
+                      <div className="bg-[#2a2a2a] border border-[#3a3a3a] rounded-xl p-4 max-h-32 overflow-y-auto">
+                        <div className="space-y-2">
+
+                          {users.map((user) => (
+                            <label
+                              key={user.uid}
+                              className="flex items-center gap-3 p-2 hover:bg-[#3a3a3a] rounded-lg cursor-pointer transition-colors"
+                            >
+                              <input
+                                type="checkbox"
+                                value={user.uid}
+                                checked={selectedMembers.includes(user.uid)}
+                                onChange={() => {
+                                  if (selectedMembers.includes(user.uid)) {
+                                    setSelectedMembers(
+                                      selectedMembers.filter((id) => id !== user.uid)
+                                    );
+                                  } else {
+                                    setSelectedMembers([...selectedMembers, user.uid]);
+                                  }
+                                }}
+                                className="w-4 h-4 text-mainPurple bg-[#3a3a3a] border-[#4a4a4a] rounded"
+                              />
+                              <span className="text-gray-300 text-sm">
+                                {user.name}
+                              </span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  <button
+                    type="submit"
+                    className="w-full bg-mainPurple hover:bg-[#7b287c] disabled:cursor-not-allowed text-white py-3 px-4 rounded-xl font-medium transition-colors"
                   >
-                    <span>{channel.name}</span>
+                    Create Channel
+                  </button>
+                </form>
+              </div>
 
-                    {joinedChannels.includes(channel.id) ? (
-                      <span className="text-white bg-green-500 flex justify-center items-center font-medium w-[80px] rounded-md h-[30px]">
-                        Joined
-                      </span>
-                    ) : (
-                      <button
-                        onClick={() => handleJoin(channel.id)}
-                        className="text-white w-[80px] rounded-md h-[30px] bg-green-800 hover:underline"
+              {/* Available Channels */}
+              <div className="p-6">
+                <h3 className="text-lg font-semibold text-white mb-4">
+                  Available Channels
+                </h3>
+                
+                {channels.length === 0 ? (
+                  <div className="text-center py-8">
+                    <Hash size={48} className="text-gray-600 mx-auto mb-3" />
+                    <p className="text-gray-400">No channels available</p>
+                    <p className="text-gray-500 text-sm">Create the first channel above</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {channels.map((channel: any) => (
+                      <div
+                        key={channel.id}
+                        className="flex items-center justify-between p-3 bg-[#2a2a2a] rounded-xl hover:bg-[#3a3a3a] transition-colors"
                       >
-                        Join
-                      </button>
-                    )}
-                  </li>
-                ))}
-              </ul>
+                        <div className="flex items-center gap-3">
+                          <div>
+                            <span className="text-white font-medium">
+                              # {channel.name}
+                            </span>
+                            <p className="text-xs text-gray-400">
+                              {channel.type === "private" ? "Private" : "Public"}{" "}
+                              {channel.members?.length || 0} members
+                            </p>
+                          </div>
+                        </div>
+
+                      
+                          <button
+                            onClick={() => handleJoin(channel.id)}
+                            className="bg-mainPurple hover:bg-[#7b287c] text-white px-4 py-1.5 rounded-lg text-sm font-medium transition-colors"
+                          >
+                            Join
+                          </button>
+                        
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
