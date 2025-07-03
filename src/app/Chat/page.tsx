@@ -240,8 +240,18 @@ export default function ChatPage() {
     }
   };
 
+useEffect(() => {
+  const handleFocus = () => {
+    messagesEndRef?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  window.addEventListener("focusin", handleFocus);
+  return () => window.removeEventListener("focusin", handleFocus);
+}, []);
+
+
   return (
-    <div className="h-screen flex flex-col md:flex-row bg-[#0a0a0a] font-inter overflow-hidden">
+    <div className="h-[100dvh] flex flex-col md:flex-row bg-[#0a0a0a] font-inter overflow-hidden">
       {/* ---SIDEBAR-- */}
 
       <aside
