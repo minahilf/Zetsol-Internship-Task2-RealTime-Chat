@@ -68,7 +68,10 @@ const config: Config = {
   			lg: 'var(--radius)',
   			md: 'calc(var(--radius) - 2px)',
   			sm: 'calc(var(--radius) - 4px)'
-  		}
+  		},
+		spacing: {
+    'safe-bottom': 'env(safe-area-inset-bottom)',
+  },
   	}
   },
   plugins: [require("tailwindcss-animate")],

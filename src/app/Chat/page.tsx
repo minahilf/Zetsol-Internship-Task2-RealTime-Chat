@@ -371,7 +371,7 @@ export default function ChatPage() {
       </aside>
 
       {/* ---CHAT AREA-- */}
-      <main className="flex-1 bg-[#0a0a0a] flex flex-col min-h-0 w-full md:w-auto">
+      <main className="flex-1 bg-[#0a0a0a] flex flex-col h-full w-full md:w-auto">
         {/* Header */}
         <header className="flex items-center justify-between p-3 md:p-4 border-b border-[#2a2a2a] bg-[#1a1a1a] flex-shrink-0">
           {/* mob k lye menu button  */}
@@ -510,7 +510,7 @@ export default function ChatPage() {
 
         {/* Message Input */}
         {(selectedUserId || selectedChannelId) && (
-          <footer className="p-3 md:p-4 border-t border-[#2a2a2a] bg-[#1a1a1a] flex-shrink-0">
+          <footer className="p-3 md:p-4 border-t border-[#2a2a2a] bg-[#1a1a1a] flex-shrink-0 safe-bottom">
             <div className="flex items-end gap-2 md:gap-3">
               <div className="flex-1 relative">
                 <div className="flex items-center bg-[#2a2a2a] rounded-2xl p-2 md:p-3">
