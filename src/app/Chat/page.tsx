@@ -511,9 +511,9 @@ export default function ChatPage() {
         {/* Message Input */}
         {(selectedUserId || selectedChannelId) && (
           <footer className="p-3 md:p-4 border-t border-[#2a2a2a] bg-[#1a1a1a] flex-shrink-0 safe-bottom">
-            <div className="flex items-end gap-2 md:gap-3">
+            <div className="flex items-end gap-2 md:gap-3 flex-nowrap w-full">
               <div className="flex-1 relative">
-                <div className="flex items-center bg-[#2a2a2a] rounded-2xl p-2 md:p-3">
+                <div className="flex items-center bg-[#2a2a2a] rounded-2xl p-2 md:p-3 flex-1 min-w-0">
                   <input
                     type="text"
                     placeholder="Type a message..."
