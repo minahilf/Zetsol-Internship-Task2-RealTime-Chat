@@ -10,6 +10,7 @@ import {
   MessageCircle,
   Image,
   User,
+  Lock
 } from "lucide-react";
 import ChatManager from "@/components/ChatManager";
 import { signOut } from "firebase/auth";
@@ -22,6 +23,10 @@ import {
   orderBy,
   query,
   serverTimestamp,
+  setDoc,
+  doc,
+  updateDoc,
+  arrayRemove
 } from "firebase/firestore";
 import { db } from "../../../firebase";
 import socket from "../utils/socket";
@@ -31,7 +36,7 @@ export default function ChatPage() {
   // ----STATES----
   const [showSidebar, setShowSidebar] = useState(false);
   const [showChatModal, setShowChatModal] = useState(false);
-  const [showChannelModal, setShowChannelModal] = useState(false);
+  const [recentUsers, setRecentUsers] = useState<any[]>([]);
 
   const [message, setMessage] = useState("");
   const [users, setUsers] = useState<any[]>([]);
@@ -42,26 +47,23 @@ export default function ChatPage() {
   const [messagesEndRef, setMessagesEndRef] = useState<HTMLDivElement | null>(
     null
   );
-
-
+  const [showJoinChannelModal, setShowJoinChannelModal] = useState(false);
+  const [showCreateChannelModal, setShowCreateChannelModal] = useState(false);
+  const [showMembersModal, setShowMembersModal] = useState(false);
 
 
   const router = useRouter();
 
-
-  // agr login nh h to login page pe redirect hojaega khd 
+  // agr login nh h to login page pe redirect hojaega khd
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((user) => {
       if (!user) {
-        router.push("/Login"); 
+        router.push("/Login");
       }
     });
 
     return () => unsubscribe();
   }, []);
-
-
-
 
   // Auto scroll to bottom when new messages come
   useEffect(() => {
@@ -69,9 +71,6 @@ export default function ChatPage() {
       messagesEndRef.scrollTop = messagesEndRef.scrollHeight;
     }
   }, [chatMessages]);
-
-
-
 
   // ---- LOGOUT FUNCTION ----
   const logOut = async () => {
@@ -110,8 +109,6 @@ export default function ChatPage() {
     return () => unsub();
   }, []);
 
-
-  
   // ---SEND MESSAGE---
   const sendMessage = async () => {
     const currentUser = auth.currentUser;
@@ -126,6 +123,8 @@ export default function ChatPage() {
     try {
       if (selectedUserId) {
         const sessionId = getSessionId(currentUser.uid, selectedUserId);
+          await setDoc(doc(db, "chats", sessionId), { createdAt: serverTimestamp() }, { merge: true });
+
 
         // ffirestore me save
         await addDoc(collection(db, "chats", sessionId, "messages"), {
@@ -164,19 +163,17 @@ export default function ChatPage() {
     if (!selectedChannelId) return;
 
     const q = collection(db, "channels", selectedChannelId, "messages");
-    orderBy("timestamp")
+    orderBy("timestamp");
     // real time msg milrha
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const msgs = snapshot.docs.map((doc) => doc.data())
-      .filter((msg) => msg.timestamp) 
-      .sort((a, b) => a.timestamp.toMillis() - b.timestamp.toMillis()); 
+      const msgs = snapshot.docs
+        .map((doc) => doc.data())
+        .filter((msg) => msg.timestamp)
+        .sort((a, b) => a.timestamp.toMillis() - b.timestamp.toMillis());
       setChatMessages(msgs);
     });
     return () => unsubscribe();
   }, [selectedChannelId]);
-
-
-
 
   // ---CHANNEL SETTINGS PUBLIC PRIVATE---
   const handleChannelClick = (channel: any) => {
@@ -240,14 +237,58 @@ export default function ChatPage() {
     }
   };
 
-useEffect(() => {
-  const handleFocus = () => {
-    messagesEndRef?.scrollIntoView({ behavior: "smooth" });
-  };
+  useEffect(() => {
+    const handleFocus = () => {
+      messagesEndRef?.scrollIntoView({ behavior: "smooth" });
+    };
 
-  window.addEventListener("focusin", handleFocus);
-  return () => window.removeEventListener("focusin", handleFocus);
-}, []);
+    window.addEventListener("focusin", handleFocus);
+    return () => window.removeEventListener("focusin", handleFocus);
+  }, []);
+
+
+
+useEffect(() => {
+  const currentUser = auth.currentUser;
+  if (!currentUser || users.length === 0) return;
+
+  const unsub = onSnapshot(collection(db, "chats"), (snapshot) => {
+    const recentIds = new Set<string>();
+
+    snapshot.docs.forEach((doc) => {
+      const sessionId = doc.id; // e.g. "uid1_uid2"
+      if (sessionId.includes(currentUser.uid)) {
+        const otherId = sessionId
+          .split("_")
+          .find((id) => id !== currentUser.uid);
+        if (otherId) recentIds.add(otherId);
+      }
+    });
+
+    const filtered = users.filter((u) => recentIds.has(u.uid));
+    setRecentUsers(filtered);
+  });
+
+  return () => unsub();
+}, [users]);
+
+// member remove 
+const removeMember = async (memberId: string) => {
+  try {
+    if (!selectedChannelId) return;
+
+    const channelRef = doc(db, "channels", selectedChannelId);
+
+    await updateDoc(channelRef, {
+      members: arrayRemove(memberId),
+    });
+
+    console.log("Member removed:", memberId);
+  } catch (error) {
+    console.error("Error removing member:", error);
+  }
+};
+
 
 
   return (
@@ -295,15 +336,25 @@ useEffect(() => {
                 <span className="text-sm font-medium">New Chat</span>
               </button>
 
-              {/* button 2 */}
               <button
-                onClick={() => setShowChannelModal(true)}
+                onClick={() => setShowJoinChannelModal(true)}
                 className="w-full flex items-center gap-3 text-white p-2 rounded-lg transition-colors"
               >
                 <div className="w-6 h-6 bg-mainPurple rounded-md flex items-center justify-center">
                   <Hash size={14} />
                 </div>
                 <span className="text-sm font-medium">Join Channel</span>
+              </button>
+
+              {/* Create Channel Button */}
+              <button
+                onClick={() => setShowCreateChannelModal(true)}
+                className="w-full flex items-center gap-3 text-white p-2 rounded-lg transition-colors"
+              >
+                <div className="w-6 h-6 bg-mainPurple rounded-md flex items-center justify-center">
+                  <Plus size={14} />
+                </div>
+                <span className="text-sm font-medium">Create Channel</span>
               </button>
             </div>
           </div>
@@ -317,7 +368,7 @@ useEffect(() => {
 
               {/* users  */}
               <div className="space-y-1">
-                {users.map((user) => (
+                {recentUsers.map((user) => (
                   <div
                     key={user.uid}
                     onClick={() => {
@@ -357,7 +408,11 @@ useEffect(() => {
                     }}
                     className="flex items-center gap-3 p-2 rounded-lg cursor-pointer text-gray-400"
                   >
-                    <Hash size={16} className="text-gray-400" />
+                      {channel.type === "private" ? (
+      <Lock size={16} className="text-gray-500" />
+    ) : (
+      <Hash size={16} className="text-gray-400" />
+    )}
 
                     <span className="text-sm font-medium truncate">
                       {channel.name}
@@ -407,28 +462,66 @@ useEffect(() => {
                   </div>
                 </>
               ) : selectedChannelId ? (
-                <>
+         
                   <div>
                     <h2 className="text-white font-semibold text-sm md:text-base">
                       #
                       {channels.find((c) => c.id === selectedChannelId)?.name ||
                         "Channel"}
                     </h2>
-                    {/* members ki lenght likhdenge k kitne members is me add hen */}
-                    <p className="text-gray-400 text-xs">
-                      {channels.find((c) => c.id === selectedChannelId)?.members
-                        ?.length || 0}{" "}
-                      members
+                    <p className="text-gray-400 text-xs cursor-pointer" onClick={() => setShowMembersModal(true)}>
+                      View Members
                     </p>
                   </div>
-                </>
-              ) : (
+                              ) : (
                 <div>
                   <h2 className="text-white font-semibold text-sm md:text-base">
                     No Chat Selected
                   </h2>
                 </div>
               )}
+              {showMembersModal && (
+  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60">
+    <div className="bg-[#1a1a1a] w-full max-w-md mx-auto rounded-lg p-6 shadow-xl text-white">
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="text-lg font-semibold">Channel Members</h2>
+        <button
+          onClick={() => setShowMembersModal(false)}
+          className="text-gray-400 hover:text-white text-sm"
+        >
+          Close
+        </button>
+      </div>
+
+{/* channel members  */}
+      <ul className="space-y-3">
+        {channels
+          .find((c) => c.id === selectedChannelId)
+          ?.members?.map((memberId:string, index: number) => {
+            const user = users.find((u) => u.uid === memberId);
+            return (
+              <li
+                key={index}
+                className="flex items-center justify-between bg-[#2a2a2a] px-3 py-2 rounded-md"
+              >
+                <div className="flex items-center gap-3">
+                  <span className="text-sm">{user?.name || "Unknown"}</span>
+                </div>
+
+                <button
+                  onClick={() => removeMember(memberId)}
+                  className="text-red-400 text-xs font-semibold hover:underline"
+                >
+                  Remove
+                </button>
+              </li>
+            );
+          })}
+      </ul>
+    </div>
+  </div>
+)}
+
             </div>
           </div>
         </header>
@@ -441,8 +534,10 @@ useEffect(() => {
         <ChatManager
           showChatModal={showChatModal}
           setShowChatModal={setShowChatModal}
-          showChannelModal={showChannelModal}
-          setShowChannelModal={setShowChannelModal}
+          showJoinChannelModal={showJoinChannelModal}
+          setShowJoinChannelModal={setShowJoinChannelModal}
+          showCreateChannelModal={showCreateChannelModal}
+          setShowCreateChannelModal={setShowCreateChannelModal}
           setChannels={setChannels}
           channels={channels}
           users={users}

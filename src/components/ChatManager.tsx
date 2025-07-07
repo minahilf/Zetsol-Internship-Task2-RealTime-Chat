@@ -11,14 +11,20 @@ import {
   onSnapshot,
 } from "firebase/firestore";
 import { db, auth } from "../../firebase";
-import { X, Hash, MessageCircle, Users, Check } from "lucide-react";
+import { X, Hash, MessageCircle, Users, Lock } from "lucide-react";
 
 // props ko ek interface dedia like types dedi take sb clear rhe
 interface ChatManagerProps {
   showChatModal: boolean;
   setShowChatModal: (value: boolean) => void;
-  showChannelModal: boolean;
-  setShowChannelModal: (value: boolean) => void;
+
+// new upgration 
+  showJoinChannelModal: boolean;
+  setShowJoinChannelModal: (value: boolean) => void;
+
+  showCreateChannelModal: boolean;
+  setShowCreateChannelModal: (value: boolean) => void;
+
   setChannels: (channels: any[]) => void;
   channels: any;
   users: any[];
@@ -26,18 +32,22 @@ interface ChatManagerProps {
   setSelectedChannelId: (id: string) => void;
 }
 
+
 export default function ChatManager({
   // destructuring
   showChatModal,
   setShowChatModal,
-  showChannelModal,
-  setShowChannelModal,
+  showJoinChannelModal,
+  setShowJoinChannelModal,
+  showCreateChannelModal,
+  setShowCreateChannelModal,
   setChannels,
   channels,
   users,
   setSelectedUserId,
   setSelectedChannelId
 }: ChatManagerProps) {
+
 
   // ---STATES--- 
   const [joinedChannels, setJoinedChannels] = useState<string[]>([]);
@@ -100,7 +110,7 @@ export default function ChatManager({
       setChannelName("");
       setChannelType("");
       setSelectedMembers([]);
-      setShowChannelModal(false);
+      setShowCreateChannelModal(false)
       alert("Channel created successfully");
     } catch (error) {
       alert("Something went wrong");
@@ -167,15 +177,20 @@ export default function ChatManager({
                   </option>
 
                   {/* list me sb user ajayege */}
-                  {users.map((user) => (
-                    <option 
-                      key={user.uid} 
-                      value={user.uid} 
-                      className="bg-[#2a2a2a] text-white"
-                    >
-                      {user.name}
-                    </option>
-                  ))}
+{users.map((user) => {
+  const isCurrentUser = user.uid === auth.currentUser?.uid;
+
+  return (
+    <option
+      key={user.uid}
+      value={user.uid}
+      className="bg-[#2a2a2a] text-white"
+    >
+      {isCurrentUser ? "You" : user.name}
+    </option>
+  );
+})}
+                
                 </select>
               </div>
             </div>
@@ -184,28 +199,203 @@ export default function ChatManager({
       )}
 
       {/* CHANNEL MODAL */}
-      {showChannelModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    {/* Join Channel Modal */}
+{showJoinChannelModal && (
+  <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden shadow-2xl">
 
-          <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden shadow-2xl">
+      {/* Header */}
+      <div className="flex items-center justify-between p-6 border-b border-[#2a2a2a]">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 bg-mainPurple rounded-lg flex items-center justify-center">
+            <Hash size={16} className="text-white" />
+          </div>
 
-            {/* Header */}
-            <div className="flex items-center justify-between p-6 border-b border-[#2a2a2a]">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-mainPurple rounded-lg flex items-center justify-center">
-                  <Hash size={16} className="text-white" />
-                </div>
-                <h2 className="text-xl font-semibold text-white">
-                  Channels
-                </h2>
+          <h2 className="text-xl font-semibold text-white">
+            Join Channel
+          </h2>
+        </div>
+        <button
+          onClick={() => setShowJoinChannelModal(false)}
+          className="text-gray-400 hover:text-white transition-colors p-1"
+        >
+          <X size={20} />
+        </button>
+      </div>
+
+      {/* Channel List */}
+      <div className="p-6 space-y-3 max-h-[60vh] overflow-y-auto">
+        {channels.map((channel: any) => {
+          const alreadyMember = channel.members.includes(auth.currentUser?.uid);
+
+          // sirf un channels ko show kro jo joined nahi hain
+          if (alreadyMember) return null;
+
+          return (
+            <div
+              key={channel.id}
+              className="p-4 bg-[#2a2a2a] rounded-xl flex items-center justify-between"
+            >
+              <div>
+             <h3 className="text-white font-semibold text-base flex items-center gap-2">
+  {channel.type === "private" ? (
+    <>
+      <Lock size={14} className="text-gray-500" />
+      {channel.name}
+    </>
+  ) : (
+    <>
+      <Hash size={14} className="text-gray-400" />
+      {channel.name}
+    </>
+  )}
+</h3>
+
               </div>
+
               <button
-                onClick={() => setShowChannelModal(false)}
-                className="text-gray-400 hover:text-white transition-colors p-1"
+                onClick={async () => {
+                  const currentUser = auth.currentUser;
+                  if (!currentUser) return;
+
+              
+                  try {
+                    // update Firestore me members array
+                    const docRef = doc(db, "channels", channel.id);
+                    await updateDoc(docRef, {
+                      members: [...channel.members, currentUser.uid],
+                    });
+
+                    setShowJoinChannelModal(false);
+                    alert("Successfully joined the channel!");
+                  } catch (error) {
+                    alert("Failed to join channel.");
+                  }
+                }}
+                className="bg-mainPurple text-white px-4 py-2 rounded-lg text-sm"
               >
-                <X size={20} />
+                Join
               </button>
             </div>
+          );
+        })}
+      </div>
+    </div>
+  </div>
+)}
+
+{/* Create Channel Modal */}
+{showCreateChannelModal && (
+  <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden shadow-2xl">
+      
+      {/* Header */}
+      <div className="flex items-center justify-between p-6 border-b border-[#2a2a2a]">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 bg-mainPurple rounded-lg flex items-center justify-center">
+            <Hash size={16} className="text-white" />
+          </div>
+          <h2 className="text-xl font-semibold text-white">Create Channel</h2>
+        </div>
+        <button
+          onClick={() => setShowCreateChannelModal(false)}
+          className="text-gray-400 hover:text-white transition-colors p-1"
+        >
+          <X size={20} />
+        </button>
+      </div>
+
+      {/* Form */}
+      <form onSubmit={handleCreateChannel} className="p-6 space-y-4">
+        {/* Channel Name */}
+        <div>
+          <label className="block text-sm font-medium text-white mb-1">
+            Channel Name
+          </label>
+          <input
+            type="text"
+            value={channelName}
+            onChange={(e) => setChannelName(e.target.value)}
+            className="w-full px-4 py-2 rounded-lg bg-[#2a2a2a] text-white outline-none"
+            placeholder="Enter channel name"
+          />
+        </div>
+
+        {/* Channel Type */}
+        <div className="space-y-2">
+    <label className="block text-sm font-medium text-gray-300">
+      Channel Type
+    </label>
+    <div className="flex gap-4">
+      <button
+        type="button"
+        onClick={() => setChannelType("public")}
+        className={`flex-1 py-2 px-4 rounded-xl text-sm font-semibold transition-colors border ${
+          channelType === "public"
+            ? "bg-mainPurple text-white border-mainPurple"
+            : "bg-[#1a1a1a] text-gray-300 border-[#333] hover:border-mainPurple"
+        }`}
+      >
+        Public
+      </button>
+      <button
+        type="button"
+        onClick={() => setChannelType("private")}
+        className={`flex-1 py-2 px-4 rounded-xl text-sm font-semibold transition-colors border ${
+          channelType === "private"
+            ? "bg-mainPurple text-white border-mainPurple"
+            : "bg-[#1a1a1a] text-gray-300 border-[#333] hover:border-mainPurple"
+        }`}
+      >
+        Private
+      </button>
+    </div>
+  </div>
+
+        {/* Members Selection */}
+        <div>
+          <label className="block text-sm font-medium text-white mb-1">
+            Add Members
+          </label>
+          <div className="space-y-2 max-h-[150px] overflow-y-auto pr-2">
+            {users.map((user) => (
+              <div key={user.uid} className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id={user.uid}
+                  checked={selectedMembers.includes(user.uid)}
+                  onChange={(e) => {
+                    if (e.target.checked) {
+                      setSelectedMembers([...selectedMembers, user.uid]);
+                    } else {
+                      setSelectedMembers(
+                        selectedMembers.filter((id) => id !== user.uid)
+                      );
+                    }
+                  }}
+                />
+                <label htmlFor={user.uid} className="text-white text-sm">
+                  {user.name}
+                </label>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Submit Button */}
+        <div className="flex justify-end pt-4">
+          <button
+            type="submit"
+            className="bg-mainPurple hover:bg-[#7b287c] text-white px-6 py-2 rounded-lg font-medium"
+          >
+            Create
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+)}
+
 
 {/* form */}
             <div className="overflow-y-auto max-h-[70vh]">
@@ -347,8 +537,4 @@ export default function ChatManager({
               </div>
             </div>
           </div>
-        </div>
       )}
-    </div>
-  );
-}

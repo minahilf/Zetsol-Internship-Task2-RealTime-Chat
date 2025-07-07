@@ -16,11 +16,11 @@ const io = new Server(server, {
 
 
 // jab bhi koi user socket se connect hota hai
-io.on("connection", (socket) => {
+io.on("connection", (socket:any) => {
     console.log("User connected", socket.id);
 
     // jb user msg send kre to dsre user ko msg chla jaye 
-    socket.on("sendMessage", (data) => {
+    socket.on("sendMessage", (data:any) => {
         socket.broadcast.emit("newMessage", data)
     })
 
