@@ -59,6 +59,7 @@ const config: Config = {
   				'5': 'hsl(var(--chart-5))'
   			}
   		},
+		
   		fontFamily: {
   			poppins: [
   				'var(--font-poppins)'
@@ -67,7 +68,8 @@ const config: Config = {
   		borderRadius: {
   			lg: 'var(--radius)',
   			md: 'calc(var(--radius) - 2px)',
-  			sm: 'calc(var(--radius) - 4px)'
+  			sm: 'calc(var(--radius) - 4px)',
+        'custom': '10px',
   		},
 		spacing: {
     'safe-bottom': 'env(safe-area-inset-bottom)',

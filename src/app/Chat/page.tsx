@@ -10,7 +10,7 @@ import {
   MessageCircle,
   Image,
   User,
-  Lock
+  Lock,
 } from "lucide-react";
 import ChatManager from "@/components/ChatManager";
 import { signOut } from "firebase/auth";
@@ -26,11 +26,12 @@ import {
   setDoc,
   doc,
   updateDoc,
-  arrayRemove
+  arrayRemove,
 } from "firebase/firestore";
 import { db } from "../../../firebase";
 import socket from "../utils/socket";
 import { getSessionId } from "../utils/getSessionId";
+import { toast } from "sonner";
 
 export default function ChatPage() {
   // ----STATES----
@@ -50,7 +51,7 @@ export default function ChatPage() {
   const [showJoinChannelModal, setShowJoinChannelModal] = useState(false);
   const [showCreateChannelModal, setShowCreateChannelModal] = useState(false);
   const [showMembersModal, setShowMembersModal] = useState(false);
-
+  const [loading, setLoading] = useState(false);
 
   const router = useRouter();
 
@@ -82,6 +83,7 @@ export default function ChatPage() {
     const currentUser = auth.currentUser;
     if (!currentUser || !selectedUserId) return;
 
+    setLoading(true);
     // dono users ki id mila k ek session id bnani h jis me chats store hongi dono ki
     const sessionId = getSessionId(currentUser.uid, selectedUserId);
     const q = query(
@@ -92,8 +94,8 @@ export default function ChatPage() {
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const filtered = snapshot.docs.map((doc) => doc.data());
       setChatMessages(filtered);
+      setLoading(false);
     });
-
     return () => unsubscribe();
   }, [selectedUserId]);
 
@@ -123,8 +125,11 @@ export default function ChatPage() {
     try {
       if (selectedUserId) {
         const sessionId = getSessionId(currentUser.uid, selectedUserId);
-          await setDoc(doc(db, "chats", sessionId), { createdAt: serverTimestamp() }, { merge: true });
-
+        await setDoc(
+          doc(db, "chats", sessionId),
+          { createdAt: serverTimestamp() },
+          { merge: true }
+        );
 
         // ffirestore me save
         await addDoc(collection(db, "chats", sessionId, "messages"), {
@@ -161,6 +166,7 @@ export default function ChatPage() {
   // channels msgs show krwane hen
   useEffect(() => {
     if (!selectedChannelId) return;
+    setLoading(true);
 
     const q = collection(db, "channels", selectedChannelId, "messages");
     orderBy("timestamp");
@@ -171,6 +177,7 @@ export default function ChatPage() {
         .filter((msg) => msg.timestamp)
         .sort((a, b) => a.timestamp.toMillis() - b.timestamp.toMillis());
       setChatMessages(msgs);
+      setLoading(false);
     });
     return () => unsubscribe();
   }, [selectedChannelId]);
@@ -185,7 +192,7 @@ export default function ChatPage() {
       channel.type === "private" &&
       !channel.members.includes(currentUser.uid)
     ) {
-      alert("You are not a member of this private channel");
+      toast("You are not a member of this private channel");
       return;
     }
 
@@ -246,50 +253,44 @@ export default function ChatPage() {
     return () => window.removeEventListener("focusin", handleFocus);
   }, []);
 
+  useEffect(() => {
+    const currentUser = auth.currentUser;
+    if (!currentUser || users.length === 0) return;
 
+    const unsub = onSnapshot(collection(db, "chats"), (snapshot) => {
+      const recentIds = new Set<string>();
 
-useEffect(() => {
-  const currentUser = auth.currentUser;
-  if (!currentUser || users.length === 0) return;
+      snapshot.docs.forEach((doc) => {
+        const sessionId = doc.id;
+        if (sessionId.includes(currentUser.uid)) {
+          const otherId = sessionId
+            .split("_")
+            .find((id) => id !== currentUser.uid);
+          if (otherId) recentIds.add(otherId);
+        }
+      });
 
-  const unsub = onSnapshot(collection(db, "chats"), (snapshot) => {
-    const recentIds = new Set<string>();
-
-    snapshot.docs.forEach((doc) => {
-      const sessionId = doc.id; // e.g. "uid1_uid2"
-      if (sessionId.includes(currentUser.uid)) {
-        const otherId = sessionId
-          .split("_")
-          .find((id) => id !== currentUser.uid);
-        if (otherId) recentIds.add(otherId);
-      }
+      const filtered = users.filter((u) => recentIds.has(u.uid));
+      setRecentUsers(filtered);
     });
 
-    const filtered = users.filter((u) => recentIds.has(u.uid));
-    setRecentUsers(filtered);
-  });
+    return () => unsub();
+  }, [users]);
 
-  return () => unsub();
-}, [users]);
+  // member remove
+  const removeMember = async (memberId: string) => {
+    try {
+      if (!selectedChannelId) return;
 
-// member remove 
-const removeMember = async (memberId: string) => {
-  try {
-    if (!selectedChannelId) return;
+      const channelRef = doc(db, "channels", selectedChannelId);
 
-    const channelRef = doc(db, "channels", selectedChannelId);
-
-    await updateDoc(channelRef, {
-      members: arrayRemove(memberId),
-    });
-
-    console.log("Member removed:", memberId);
-  } catch (error) {
-    console.error("Error removing member:", error);
-  }
-};
-
-
+      await updateDoc(channelRef, {
+        members: arrayRemove(memberId),
+      });
+    } catch (error) {
+      console.error("Error removing member:", error);
+    }
+  };
 
   return (
     <div className="h-[100dvh] flex flex-col md:flex-row bg-[#0a0a0a] font-inter overflow-hidden">
@@ -307,8 +308,12 @@ const removeMember = async (memberId: string) => {
             <div className="flex justify-between items-center mb-4">
               <div className="flex items-center gap-2">
                 {/* logo  */}
-                <div className="w-8 h-8 bg-mainPurple rounded-lg flex items-center justify-center">
-                  <span className="text-white font-bold text-sm">C</span>
+                <div className="w-[50px] h-[50px]">
+                  <img
+                    src="/logo.png"
+                    alt="Chattrix Logo"
+                    className="w-full h-full object-contain"
+                  />
                 </div>
 
                 {/* name  */}
@@ -326,7 +331,7 @@ const removeMember = async (memberId: string) => {
             {/* New Chat & Join Channel Buttons */}
             <div className="space-y-2">
               {/* button 1 */}
-              <button
+              {/* <button
                 onClick={() => setShowChatModal(true)}
                 className="w-full flex items-center gap-3 text-white p-2 rounded-lg transition-colors"
               >
@@ -334,7 +339,7 @@ const removeMember = async (memberId: string) => {
                   <Plus size={14} />
                 </div>
                 <span className="text-sm font-medium">New Chat</span>
-              </button>
+              </button> */}
 
               <button
                 onClick={() => setShowJoinChannelModal(true)}
@@ -343,7 +348,7 @@ const removeMember = async (memberId: string) => {
                 <div className="w-6 h-6 bg-mainPurple rounded-md flex items-center justify-center">
                   <Hash size={14} />
                 </div>
-                <span className="text-sm font-medium">Join Channel</span>
+                <span className="text-sm font-medium">Browse Channel</span>
               </button>
 
               {/* Create Channel Button */}
@@ -362,9 +367,14 @@ const removeMember = async (memberId: string) => {
           {/* Direct Messages */}
           <div className="flex-1 overflow-y-auto sidebar-user-scroll px-2 pt-4 pb-4">
             <div className="mb-6">
-              <h3 className="text-gray-400 text-xs uppercase tracking-wide font-semibold mb-3">
-                Direct Messages
-              </h3>
+              <div className="flex items-center justify-between mb-3">
+  <h3 className="text-gray-400 text-xs uppercase tracking-wide font-semibold">
+    Direct Messages
+  </h3>
+  <button onClick={() => setShowChatModal(true)}>
+    <Plus size={20} className="text-white" />
+  </button>
+</div>
 
               {/* users  */}
               <div className="space-y-1">
@@ -399,7 +409,9 @@ const removeMember = async (memberId: string) => {
               </h3>
               {/* channels k name  */}
               <div className="space-y-1">
-                {channels.map((channel) => (
+                {channels
+                 .filter((channel) => channel.members.includes(auth.currentUser?.uid))
+                .map((channel) => (
                   <div
                     key={channel.id}
                     onClick={() => {
@@ -408,11 +420,11 @@ const removeMember = async (memberId: string) => {
                     }}
                     className="flex items-center gap-3 p-2 rounded-lg cursor-pointer text-gray-400"
                   >
-                      {channel.type === "private" ? (
-      <Lock size={16} className="text-gray-500" />
-    ) : (
-      <Hash size={16} className="text-gray-400" />
-    )}
+                    {channel.type === "private" ? (
+                      <Lock size={16} className="text-gray-500" />
+                    ) : (
+                      <Hash size={16} className="text-gray-400" />
+                    )}
 
                     <span className="text-sm font-medium truncate">
                       {channel.name}
@@ -462,18 +474,29 @@ const removeMember = async (memberId: string) => {
                   </div>
                 </>
               ) : selectedChannelId ? (
-         
-                  <div>
+                <div className="flex flex-col">
+                  <div className="flex items-center gap-2">
+                    {channels.find((c) => c.id === selectedChannelId)?.type ===
+                    "private" ? (
+                      <Lock size={16} className="text-gray-400" />
+                    ) : (
+                      <Hash size={16} className="text-gray-400" />
+                    )}
+
                     <h2 className="text-white font-semibold text-sm md:text-base">
-                      #
                       {channels.find((c) => c.id === selectedChannelId)?.name ||
                         "Channel"}
                     </h2>
-                    <p className="text-gray-400 text-xs cursor-pointer" onClick={() => setShowMembersModal(true)}>
-                      View Members
-                    </p>
                   </div>
-                              ) : (
+
+                  <p
+                    className="text-gray-400 text-xs cursor-pointer"
+                    onClick={() => setShowMembersModal(true)}
+                  >
+                    View Members
+                  </p>
+                </div>
+              ) : (
                 <div>
                   <h2 className="text-white font-semibold text-sm md:text-base">
                     No Chat Selected
@@ -481,31 +504,45 @@ const removeMember = async (memberId: string) => {
                 </div>
               )}
               {showMembersModal && (
-  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60">
-    <div className="bg-[#1a1a1a] w-full max-w-md mx-auto rounded-lg p-6 shadow-xl text-white">
-      <div className="flex justify-between items-center mb-4">
-        <h2 className="text-lg font-semibold">Channel Members</h2>
-        <button
-          onClick={() => setShowMembersModal(false)}
-          className="text-gray-400 hover:text-white text-sm"
-        >
-          Close
-        </button>
-      </div>
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60 ">
+                  <div className="bg-[#1a1a1a] w-full max-w-md mx-auto rounded-lg p-6 shadow-xl text-white">
+                    <div className="flex justify-between items-center mb-4">
+                      <h2 className="text-lg font-semibold">Channel Members</h2>
+                      <button
+                        onClick={() => setShowMembersModal(false)}
+                        className="text-gray-400 hover:text-white text-sm"
+                      >
+                        Close
+                      </button>
+                    </div>
 
-{/* channel members  */}
-      <ul className="space-y-3">
+                    {/* channel members  */}
+                   {selectedChannelId && (
+  <div className="mt-4">
+    <h3 className="text-white text-sm font-semibold mb-2">Channel Members</h3>
+    <div className="max-h-60 overflow-y-auto space-y-3">
+      <ul>
         {channels
           .find((c) => c.id === selectedChannelId)
-          ?.members?.map((memberId:string, index: number) => {
+          ?.members?.map((memberId: string, index: number) => {
             const user = users.find((u) => u.uid === memberId);
+            if (!user) return null;
+
             return (
               <li
                 key={index}
                 className="flex items-center justify-between bg-[#2a2a2a] px-3 py-2 rounded-md"
               >
-                <div className="flex items-center gap-3">
-                  <span className="text-sm">{user?.name || "Unknown"}</span>
+                <div
+                  className="flex items-center gap-3 cursor-pointer hover:underline"
+                  onClick={() => {
+                    setSelectedUserId(user.uid);
+                    setSelectedChannelId(""); 
+                    setShowJoinChannelModal(false); 
+                    setShowMembersModal(false)
+                  }}
+                >
+                  <span className="text-sm">{user.name}</span>
                 </div>
 
                 <button
@@ -522,6 +559,9 @@ const removeMember = async (memberId: string) => {
   </div>
 )}
 
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </header>
@@ -550,8 +590,11 @@ const removeMember = async (memberId: string) => {
           ref={setMessagesEndRef}
           className="flex-1 overflow-y-auto scrollbar-hide p-3 md:p-4 min-h-0 flex flex-col"
         >
-          {/* agr msgs send nh kiye gaye to  */}
-          {chatMessages.length === 0 ? (
+          {loading ? (
+            <div className="flex items-center justify-center flex-1">
+              <div className="w-10 h-10 border-4 border-white border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : chatMessages.length === 0 ? (
             <div className="flex items-center justify-center flex-1">
               <div className="text-center">
                 <MessageCircle
@@ -567,7 +610,6 @@ const removeMember = async (memberId: string) => {
               </div>
             </div>
           ) : (
-            // agr kiye hen to
             <div className="flex flex-col space-y-4 mt-auto">
               {chatMessages.map((msg, index) => {
                 const isCurrentUser = msg.senderId === auth.currentUser?.uid;
@@ -579,7 +621,6 @@ const removeMember = async (memberId: string) => {
                 return (
                   <div
                     key={index}
-                    // agr mene bhja to right pe msg agr ksi or ne to left
                     className={`flex ${
                       isCurrentUser ? "justify-end" : "justify-start"
                     }`}
