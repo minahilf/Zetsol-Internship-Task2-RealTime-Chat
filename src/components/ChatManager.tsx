@@ -56,6 +56,7 @@ export default function ChatManager({
   const [searchText, setSearchText] = useState("");
 
 
+
   const handleJoin = async (channelId: string) => {
     const currentUser = auth.currentUser;
     if (!currentUser) return;
@@ -98,10 +99,6 @@ export default function ChatManager({
   const handleCreateChannel = async (e: React.FormEvent) => {
     e.preventDefault();
 
-
-
-
-
     const currentUser = auth.currentUser;
     if (!currentUser || !channelName || !channelType) return;
 
@@ -125,24 +122,7 @@ export default function ChatManager({
     }
   };
 
-  // usi channel ko jo db me store hua ab ui pe show krwayege
-  useEffect(() => {
-    const unsub = onSnapshot(collection(db, "channels"), (snapshot) => {
-      const list = snapshot.docs.map((doc) => {
-        const data = doc.data();
-        return {
-          id: doc.id,
-          name: data.name,
-          type: data.type,
-          members: data.members || [],
-        };
-      });
 
-      
-      setChannels(list);
-    });
-    return () => unsub();
-  }, []);
 
 const resetCreateChannelModal = () => {
   setChannelName("");

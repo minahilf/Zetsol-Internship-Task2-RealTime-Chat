@@ -10,6 +10,7 @@ import {
   MessageCircle,
   Image,
   User,
+  Trash2,
   Lock,
 } from "lucide-react";
 import ChatManager from "@/components/ChatManager";
@@ -52,6 +53,9 @@ export default function ChatPage() {
   const [showCreateChannelModal, setShowCreateChannelModal] = useState(false);
   const [showMembersModal, setShowMembersModal] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [loadingUsers, setLoadingUsers] = useState(true);
+const [loadingChannels, setLoadingChannels] = useState(true);
+
 
   const router = useRouter();
 
@@ -107,6 +111,7 @@ export default function ChatPage() {
         ...doc.data(),
       }));
       setUsers(userList);
+      setLoadingUsers(false)
     });
     return () => unsub();
   }, []);
@@ -167,7 +172,6 @@ export default function ChatPage() {
   useEffect(() => {
     if (!selectedChannelId) return;
     setLoading(true);
-
     const q = collection(db, "channels", selectedChannelId, "messages");
     orderBy("timestamp");
     // real time msg milrha
@@ -256,10 +260,8 @@ export default function ChatPage() {
   useEffect(() => {
     const currentUser = auth.currentUser;
     if (!currentUser || users.length === 0) return;
-
     const unsub = onSnapshot(collection(db, "chats"), (snapshot) => {
       const recentIds = new Set<string>();
-
       snapshot.docs.forEach((doc) => {
         const sessionId = doc.id;
         if (sessionId.includes(currentUser.uid)) {
@@ -269,13 +271,13 @@ export default function ChatPage() {
           if (otherId) recentIds.add(otherId);
         }
       });
-
       const filtered = users.filter((u) => recentIds.has(u.uid));
       setRecentUsers(filtered);
     });
-
     return () => unsub();
   }, [users]);
+
+
 
   // member remove
   const removeMember = async (memberId: string) => {
@@ -291,6 +293,28 @@ export default function ChatPage() {
       console.error("Error removing member:", error);
     }
   };
+
+  // usi channel ko jo db me store hua ab ui pe show krwayege
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, "channels"), (snapshot) => {
+      const list = snapshot.docs.map((doc) => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          name: data.name,
+          type: data.type,
+          members: data.members || [],
+        };
+      });
+
+      
+      setChannels(list);
+      setLoadingChannels(false)
+      
+    });
+    return () => unsub();
+  }, []);
+
 
   return (
     <div className="h-[100dvh] flex flex-col md:flex-row bg-[#0a0a0a] font-inter overflow-hidden">
@@ -378,7 +402,9 @@ export default function ChatPage() {
 
               {/* users  */}
               <div className="space-y-1">
-                {recentUsers.map((user) => (
+                {loadingUsers ? (
+  <div className="text-gray-400 text-sm px-2 py-1">Loading users...</div>
+) :recentUsers.map((user) => (
                   <div
                     key={user.uid}
                     onClick={() => {
@@ -409,7 +435,9 @@ export default function ChatPage() {
               </h3>
               {/* channels k name  */}
               <div className="space-y-1">
-                {channels
+               {loadingChannels ? (
+  <div className="text-gray-400 text-sm px-2 py-1">Loading channels...</div>
+) : channels
                  .filter((channel) => channel.members.includes(auth.currentUser?.uid))
                 .map((channel) => (
                   <div
@@ -512,16 +540,15 @@ export default function ChatPage() {
                         onClick={() => setShowMembersModal(false)}
                         className="text-gray-400 hover:text-white text-sm"
                       >
-                        Close
+                         <X size={20} />
                       </button>
                     </div>
 
                     {/* channel members  */}
                    {selectedChannelId && (
   <div className="mt-4">
-    <h3 className="text-white text-sm font-semibold mb-2">Channel Members</h3>
-    <div className="max-h-60 overflow-y-auto space-y-3">
-      <ul>
+    <div className="max-h-60 overflow-y-auto ">
+      <ul className="space-y-3">
         {channels
           .find((c) => c.id === selectedChannelId)
           ?.members?.map((memberId: string, index: number) => {
@@ -531,7 +558,7 @@ export default function ChatPage() {
             return (
               <li
                 key={index}
-                className="flex items-center justify-between bg-[#2a2a2a] px-3 py-2 rounded-md"
+                className="flex items-center justify-between bg-[#2a2a2a] px-3 py-2 rounded-custom"
               >
                 <div
                   className="flex items-center gap-3 cursor-pointer hover:underline"
@@ -545,12 +572,11 @@ export default function ChatPage() {
                   <span className="text-sm">{user.name}</span>
                 </div>
 
-                <button
-                  onClick={() => removeMember(memberId)}
-                  className="text-red-400 text-xs font-semibold hover:underline"
-                >
-                  Remove
-                </button>
+               
+               <button
+               onClick={() => removeMember(memberId)}               >
+  <Trash2 className="w-4 h-4 text-red-500 hover:text-red-600" />
+</button>
               </li>
             );
           })}
